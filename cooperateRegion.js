@@ -26,7 +26,7 @@ async function main () {
     headers['session'] = JSON.stringify(session);
     infoLog('session情報: ' + JSON.stringify(session));
     /**
-     * グローバル設定を取得して、Regionサービス運用の設定がONになっているかを確認する  
+     * グローバル設定を取得して、Regionサービス運用の設定がONになっているかを確認する
      * Regionサービス運用の設定がOFFの場合、以降の処理を行わない
      */
 
@@ -59,7 +59,7 @@ async function main () {
         return;
     }
 
-    // 通知を取得する
+    // 連携用本人性確認コード発行通知を取得する
     let notifications;
     const getRegionTargetOptions = {
         url: config['notificationService']['getNotification'],
@@ -77,17 +77,6 @@ async function main () {
     // 通知が1件以上あった場合、以下の処理を行う
     if (notifications.length > 0) {
         for (let notification of notifications) {
-            // 通知のattributeから本人性確認コードを取得する
-            let identifyCode = notification['attribute']['identifyCode'];
-            if (! identifyCode) {
-                infoLog('通知ID: ' + notification['id'] + ' は本人性確認コードがない通知のため、スキップします。');
-                continue;
-            }
-            if (notification['category']['_value'] && Number(notification['category']['_value']) === 181) {
-                infoLog('通知ID: ' + notification['id'] + ' は連携解除用通知のため、スキップします。');
-                continue;
-            }
-
             // 未確認の本人性確認コード(個人から発行されたコード) の場合、利用者ID設定と本人性確認を行う
             if (!notification['attribute']['verifiedFlg']) {
                 // uuidを生成して利用者IDとして、利用者ID設定APIを呼び出す
@@ -157,7 +146,7 @@ async function main () {
                 identifyCode: notification['attribute']['identifyCode'],
                 attributes: {},
                 userInformation: null
-              };
+            };
             const postUserOptions = {
                 url: config['bookOperateService']['postUser'],
                 method: 'POST',
@@ -169,9 +158,32 @@ async function main () {
                 await execRequest(postUserOptions, '利用者作成');
                 postUserOptions['headers']['Content-Length'] = undefined;
             } catch (e) {
-                // 失敗した場合は未読のままスキップ
-                infoLog('通知ID: ' + notification['id'] + 'は利用者作成に失敗したため、スキップします。')
-                continue;
+                // エラーが有効期限切れの場合は既読処理を行ってスキップ
+                if (e.error === 'expired') {
+                    const putNotificationBody = {
+                        id: notification['id']
+                    };
+                    const putNotificationOptions = {
+                        url: config['notificationService']['putNotification'],
+                        method: 'PUT',
+                        headers: headers,
+                        json: putNotificationBody
+                    };
+                    putNotificationOptions['headers']['Content-Length'] = Buffer.byteLength(JSON.stringify(putNotificationBody));
+                    try {
+                        await execRequest(putNotificationOptions, '既読処理');
+                        putNotificationOptions['headers']['Content-Length'] = undefined;
+                    } catch (e) {
+                        // 失敗した場合は処理終了
+                        throw e;
+                    }
+                    infoLog('通知ID: ' + notification['id'] + 'の本人性確認コードは期限切れのため、スキップします。')
+                    continue;
+                } else {
+                    // それ以外の場合は未読のままスキップ
+                    infoLog('通知ID: ' + notification['id'] + 'は利用者作成に失敗したため、スキップします。')
+                    continue;
+                }
             }
             // 連携に使用した通知を既読にする
             const putNotificationBody = {
