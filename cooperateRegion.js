@@ -16,6 +16,7 @@ const log4js = require('log4js');
 const log4jsConfig = JSON.parse(fs.readFileSync('./config/log4js.config.json', 'utf-8'));
 log4js.configure(log4jsConfig);
 const applicationLogger = log4js.getLogger('application');
+const IDENTIFY_CODE_EXPIRED = '指定された本人性確認コードは、有効期限切れです';
 
 async function main () {
     // セッション情報取得
@@ -97,28 +98,17 @@ async function main () {
                 } catch (e) {
                     // エラーが有効期限切れの場合は既読処理を行ってスキップ
                     if (e.error === 'expired') {
-                        const putNotificationBody = {
-                            id: notification['id']
-                        };
-                        const putNotificationOptions = {
-                            url: config['notificationService']['putNotification'],
-                            method: 'PUT',
-                            headers: headers,
-                            json: putNotificationBody
-                        };
-                        putNotificationOptions['headers']['Content-Length'] = Buffer.byteLength(JSON.stringify(putNotificationBody));
                         try {
-                            await execRequest(putNotificationOptions, '既読処理');
-                            putNotificationOptions['headers']['Content-Length'] = undefined;
+                            await readNotification(notification);
+                            infoLog('通知ID: ' + notification['id'] + 'の本人性確認コードは期限切れのため、スキップします。');
                         } catch (e) {
                             // 失敗した場合は処理終了
                             throw e;
                         }
-                        infoLog('通知ID: ' + notification['id'] + 'の本人性確認コードは期限切れのため、スキップします。')
                         continue;
                     } else {
                         // それ以外の場合は未読のままスキップ
-                        infoLog('利用者ID設定に失敗したため、スキップします。')
+                        infoLog('利用者ID設定に失敗したため、スキップします。');
                         continue;
                     }
                 }
@@ -160,50 +150,51 @@ async function main () {
             } catch (e) {
                 // エラーが有効期限切れの場合は既読処理を行ってスキップ
                 if (e.error === 'expired') {
-                    const putNotificationBody = {
-                        id: notification['id']
-                    };
-                    const putNotificationOptions = {
-                        url: config['notificationService']['putNotification'],
-                        method: 'PUT',
-                        headers: headers,
-                        json: putNotificationBody
-                    };
-                    putNotificationOptions['headers']['Content-Length'] = Buffer.byteLength(JSON.stringify(putNotificationBody));
                     try {
-                        await execRequest(putNotificationOptions, '既読処理');
-                        putNotificationOptions['headers']['Content-Length'] = undefined;
+                        await readNotification(notification);
+                        infoLog('通知ID: ' + notification['id'] + 'の本人性確認コードは期限切れのため、スキップします。');
                     } catch (e) {
                         // 失敗した場合は処理終了
                         throw e;
                     }
-                    infoLog('通知ID: ' + notification['id'] + 'の本人性確認コードは期限切れのため、スキップします。')
                     continue;
                 } else {
                     // それ以外の場合は未読のままスキップ
-                    infoLog('通知ID: ' + notification['id'] + 'は利用者作成に失敗したため、スキップします。')
+                    infoLog('通知ID: ' + notification['id'] + 'は利用者作成に失敗したため、スキップします。');
                     continue;
                 }
             }
             // 連携に使用した通知を既読にする
-            const putNotificationBody = {
-                id: notification['id']
-            };
-            const putNotificationOptions = {
-                url: config['notificationService']['putNotification'],
-                method: 'PUT',
-                headers: headers,
-                json: putNotificationBody
-            };
-            putNotificationOptions['headers']['Content-Length'] = Buffer.byteLength(JSON.stringify(putNotificationBody));
             try {
-                await execRequest(putNotificationOptions, '既読処理');
-                putNotificationOptions['headers']['Content-Length'] = undefined;
+                await readNotification(notification);
             } catch (e) {
                 // 失敗した場合は処理終了
                 throw e;
             }
         }
+    }
+}
+
+/**
+ * 既読処理
+ */
+async function readNotification (notification) {
+    const putNotificationBody = {
+        id: notification['id']
+    };
+    const putNotificationOptions = {
+        url: config['notificationService']['putNotification'],
+        method: 'PUT',
+        headers: headers,
+        json: putNotificationBody
+    };
+    putNotificationOptions['headers']['Content-Length'] = Buffer.byteLength(JSON.stringify(putNotificationBody));
+    try {
+        await execRequest(putNotificationOptions, '既読処理');
+        putNotificationOptions['headers']['Content-Length'] = undefined;
+    } catch (e) {
+        // 失敗した場合は処理終了
+        throw e;
     }
 }
 
@@ -234,7 +225,7 @@ function execRequest (options, targetMessage) {
                 if (body) {
                     if (body.message) {
                         errorLog('message: ' + body.message);
-                        if (body.message === '指定された本人性確認コードは、有効期限切れです') {
+                        if (body.message === IDENTIFY_CODE_EXPIRED) {
                             error = 'expired';
                         }
                     } else {
