@@ -1,0 +1,43 @@
+{
+    "catalogService": {
+        "getCatalogName": "/catalog/name",
+        "getForNs": "/catalog/?ns="
+    },
+    "pxrBlockProxyService": {
+        "postRoot": "http://localhost:3003/pxr-block-proxy/?block=$pxr-root-block&path="
+    },
+    "notificationService": {
+        "getNotification": "http://localhost:3004/notification/?is_send=false&is_unread=true&is_approval=false&type=0&num=0&category=145",
+        "putNotification": "http://localhost:3004/notification/"
+    },
+    "bookOperateService": {
+        "postUser": "http://localhost:3006/book-operate/user"
+    },
+    "identityVerificateService": {
+        "postUserSettings": "/identity-verificate/user/settings",
+        "putVerifyOthers": "/identity-verificate/verify/others/"
+    },
+    "session": {
+        "loginId": "region_batch",
+        "auth": {
+            "member": {
+                "add": true
+            },
+            "app-wf-user": {
+                "create": true
+            }
+        },
+        "block": {
+            "_value": 1000402,
+            "_ver": 1
+        },
+        "actor": {
+            "_value": 1000432,
+            "_ver": 1
+        }
+    },
+    "catalog": {
+        "globalSettingNs": "catalog/ext/{extName}/setting/global"
+    },
+    "timezone": "Asia/Tokyo"
+}
